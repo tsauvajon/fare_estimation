@@ -1,16 +1,34 @@
+mod haversine;
+
 use serde::Serialize;
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
+
+// const IDLE_SPEED: f32 = 10.0;
+// const FARE_PER_SECOND_IDLE: f32 = 11.90 / (60.0 * 60.0);
+// const FARE_PER_KM_NIGHT: f32 = 1.30;
+// const FARE_PER_KM_DAY: f32 = 0.74;
+// const STANDARD_FLAG: f32 = 1.30;
+// const MINIMUM_FARE: f32 = 3.47;
 
 fn main() -> Result<(), io::Error> {
     let input = File::open("paths.csv")?;
     read_csv(input)?;
 
     let fares = vec![
-        Fare { id: &1, amount: &12.34 },
-        Fare { id: &2, amount: &45.67 },
-        Fare { id: &3, amount: &89.34 },
+        Fare {
+            id: &1,
+            amount: &12.34,
+        },
+        Fare {
+            id: &2,
+            amount: &45.67,
+        },
+        Fare {
+            id: &3,
+            amount: &89.34,
+        },
     ];
     let output = File::create("out.csv")?;
     write_csv(output, &fares)?;
@@ -23,6 +41,17 @@ fn read_csv(input: impl io::Read) -> Result<(), csv::Error> {
     let buffered = BufReader::new(input);
 
     let mut reader = csv::Reader::from_reader(buffered);
+    let _distance = haversine::distance(
+        haversine::Location {
+            latitude: 37.0,
+            longitude: 23.0,
+        },
+        haversine::Location {
+            latitude: -33.0,
+            longitude: 151.0,
+        },
+    );
+
     for _record in reader.records() {
         // let record = record?;
         // println!(
@@ -50,78 +79,4 @@ fn write_csv(output: impl io::Write, fares: &Vec<Fare>) -> Result<(), csv::Error
     wtr.flush()?;
 
     Ok(())
-}
-
-pub struct Location {
-    pub latitude: f64,
-    pub longitude: f64,
-}
-
-#[test]
-fn haversine_distance_test() {
-    assert_eq!(
-        0.5491557912038084,
-        haversine_distance(
-            Location {
-                latitude: 38.898556,
-                longitude: -77.037852
-            },
-            Location {
-                latitude: 38.897147,
-                longitude: -77.043934
-            },
-        ),
-    );
-
-    assert_eq!(
-        15328.17837221522,
-        haversine_distance(
-            Location {
-                latitude: -33.8883368,
-                longitude: 151.1931148
-            },
-            Location {
-                latitude: 37.990832,
-                longitude: 23.7032341
-            },
-        ),
-    );
-
-    assert_eq!(
-        haversine_distance(
-            Location {
-                latitude: 37.990832,
-                longitude: 23.7032341
-            },
-            Location {
-                latitude: -33.8883368,
-                longitude: 151.1931148
-            },
-        ),
-        haversine_distance(
-            Location {
-                latitude: -33.8883368,
-                longitude: 151.1931148
-            },
-            Location {
-                latitude: 37.990832,
-                longitude: 23.7032341
-            },
-        ),
-    );
-}
-
-pub fn haversine_distance(start: Location, end: Location) -> f64 {
-    let r: f64 = 6371.0;
-
-    let d_lat: f64 = (end.latitude - start.latitude).to_radians();
-    let d_lon: f64 = (end.longitude - start.longitude).to_radians();
-    let lat1: f64 = (start.latitude).to_radians();
-    let lat2: f64 = (end.latitude).to_radians();
-
-    let a: f64 = ((d_lat / 2.0).sin()) * ((d_lat / 2.0).sin())
-        + ((d_lon / 2.0).sin()) * ((d_lon / 2.0).sin()) * (lat1.cos()) * (lat2.cos());
-    let c: f64 = 2.0 * ((a.sqrt()).atan2((1.0 - a).sqrt()));
-
-    return r * c;
 }
