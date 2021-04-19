@@ -401,7 +401,6 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
 #[derive(Debug)]
 enum ReadError {
     MissingValueError { field: String },
-    // InvalidValueError { field: String, value: String },
     CSVError(csv::Error),
 }
 
@@ -413,57 +412,54 @@ impl From<csv::Error> for ReadError {
 
 type Record = (Option<u32>, Option<f64>, Option<f64>, Option<i64>);
 
+type ParsedRecord = (Option<u32>, DateTime<chrono::Utc>, haversine::Location);
+
+fn parse_record(record: Record) -> Result<ParsedRecord, ReadError> {
+    let (id, lat, lon, datetime) = record;
+
+    let datetime: DateTime<Utc> = match datetime {
+        Some(ts) => Utc.timestamp(ts, 0),
+        None => {
+            return Err(ReadError::MissingValueError {
+                field: "datetime".to_string(),
+            })
+        }
+    };
+    let loc = haversine::Location {
+        latitude: match lat {
+            Some(lat) => lat,
+            None => {
+                return Err(ReadError::MissingValueError {
+                    field: "latitude".to_string(),
+                })
+            }
+        },
+        longitude: match lon {
+            Some(lon) => lon,
+            None => {
+                return Err(ReadError::MissingValueError {
+                    field: "longitude".to_string(),
+                })
+            }
+        },
+    };
+
+    return Ok((id, datetime, loc));
+}
+
 fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
     let buffered = BufReader::new(input);
 
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(buffered);
-    let _distance_km = haversine::distance_km(
-        haversine::Location {
-            latitude: 37.0,
-            longitude: 23.0,
-        },
-        haversine::Location {
-            latitude: -33.0,
-            longitude: 151.0,
-        },
-    );
-
     let mut rides: Vec<Ride> = vec![];
     let mut current_ride_id: Option<u32> = None;
     let mut positions: Vec<Position> = vec![];
 
     for record in reader.deserialize() {
         let record: Record = record?;
-        let (id, lat, lon, datetime) = record;
-
-        let datetime: DateTime<Utc> = match datetime {
-            Some(ts) => Utc.timestamp(ts, 0),
-            None => {
-                return Err(ReadError::MissingValueError {
-                    field: "datetime".to_string(),
-                })
-            }
-        };
-        let loc = haversine::Location {
-            latitude: match lat {
-                Some(lat) => lat,
-                None => {
-                    return Err(ReadError::MissingValueError {
-                        field: "latitude".to_string(),
-                    })
-                }
-            },
-            longitude: match lon {
-                Some(lon) => lon,
-                None => {
-                    return Err(ReadError::MissingValueError {
-                        field: "longitude".to_string(),
-                    })
-                }
-            },
-        };
+        let (id, datetime, location) = parse_record(record)?;
 
         let valid_id = match id {
             Some(id) => id,
@@ -486,7 +482,7 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
 
         positions.push(Position {
             datetime: datetime,
-            location: loc,
+            location: location,
         });
         current_ride_id = Some(valid_id);
     }
