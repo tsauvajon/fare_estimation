@@ -35,30 +35,20 @@ impl From<ReadError> for MainError {
 }
 
 fn main() -> Result<(), MainError> {
-    let input = File::open("large.csv")?;
+    let input = File::open("paths.csv")?;
     let rides = read_csv(input)?;
 
     let mut fares: Vec<Fare> = vec![];
     for ride in rides {
-        let segments: Vec<Segment> = get_good_segments(ride.clone());
-
-        let mut fare_amount: f64 = STANDARD_FLAG;
-        for segment in segments {
-            fare_amount += segment.get_fare()
-        }
-        if fare_amount < MINIMUM_FARE {
-            fare_amount = MINIMUM_FARE
-        }
-
         fares.push(Fare {
             id: ride.id,
-            amount: Amount::from(fare_amount),
+            amount: Amount::from(ride.calculate_fare()),
         })
     }
 
     let output = File::create("out.csv")?;
     write_csv(output, &fares)?;
-    // write_csv(io::stdout(), &fares)?;
+    write_csv(io::stdout(), &fares)?;
 
     Ok(())
 }
@@ -165,12 +155,12 @@ fn segment_is_day() {
     };
     assert_eq!(true, day_segment.is_day());
 
-    let night_segment = Segment {
+    let late_day_segment = Segment {
         start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
         end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
         distance_km: 200.0,
     };
-    assert_eq!(true, night_segment.is_day());
+    assert_eq!(true, late_day_segment.is_day());
 
     let night_segment = Segment {
         start: Utc.ymd(2019, 1, 1).and_hms(5, 0, 0),
@@ -179,12 +169,12 @@ fn segment_is_day() {
     };
     assert_eq!(false, night_segment.is_day());
 
-    let night_segment = Segment {
+    let early_night_segment = Segment {
         start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 1),
         end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
         distance_km: 200.0,
     };
-    assert_eq!(false, night_segment.is_day());
+    assert_eq!(false, early_night_segment.is_day());
 }
 
 impl Segment {
@@ -261,6 +251,66 @@ struct Ride {
 }
 
 #[test]
+fn ride_fare() {
+    for (ride, want) in vec![
+        (
+            Ride {
+                id: 1,
+                positions: vec![],
+            },
+            MINIMUM_FARE,
+        ),
+        (
+            Ride {
+                id: 1,
+                positions: vec![
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -77.0,
+                        },
+                    },
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -78.0,
+                        }, // ± 87km from previous position
+                    },
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -77.0,
+                        }, // ± 87km from previous position
+                    },
+                ],
+            },
+            226.29426737040808,
+        ),
+    ] {
+        assert_eq!(want, ride.calculate_fare())
+    }
+}
+
+impl Ride {
+    fn calculate_fare(&self) -> f64 {
+        let segments: Vec<Segment> = get_good_segments(&self);
+
+        let mut fare_amount: f64 = STANDARD_FLAG;
+        for segment in segments {
+            fare_amount += segment.get_fare()
+        }
+        if fare_amount < MINIMUM_FARE {
+            fare_amount = MINIMUM_FARE;
+        }
+
+        fare_amount
+    }
+}
+
+#[test]
 fn it_keeps_good_segments() {
     let ride = Ride {
         id: 1,
@@ -289,7 +339,7 @@ fn it_keeps_good_segments() {
         ],
     };
 
-    let segments = get_good_segments(ride);
+    let segments = get_good_segments(&ride);
     assert_eq!(2, segments.len(),);
 }
 
@@ -326,7 +376,7 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(ride);
+        let segments = get_good_segments(&ride);
         assert_eq!(0, segments.len(),);
     }
 
@@ -359,16 +409,16 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(ride);
+        let segments = get_good_segments(&ride);
         assert_eq!(1, segments.len(),);
     }
 }
 
-fn get_good_segments(ride: Ride) -> Vec<Segment> {
+fn get_good_segments(ride: &Ride) -> Vec<Segment> {
     let mut segments: Vec<Segment> = vec![];
     let mut previous_position: Option<Position> = None;
 
-    for current_pos in ride.positions {
+    for current_pos in ride.positions.clone() {
         let prev_pos: Position = match previous_position.clone() {
             Some(prev_pos) => prev_pos,
             None => {
