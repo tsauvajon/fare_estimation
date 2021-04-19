@@ -2,19 +2,19 @@ mod haversine;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::convert::From;
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
 
 const MAX_SPEED: f64 = 100.0;
-// const IDLE_SPEED: f64 = 10.0;
-// const FARE_PER_SECOND_IDLE: f64 = 11.90 / (60.0 * 60.0);
-// const FARE_PER_KM_NIGHT: f64 = 1.30;
-// const FARE_PER_KM_DAY: f64 = 0.74;
-// const STANDARD_FLAG: f64 = 1.30;
-// const MINIMUM_FARE: f64 = 3.47;
+const IDLE_SPEED: f64 = 10.0;
+const FARE_PER_SECOND_IDLE: f64 = 11.90 / (60.0 * 60.0);
+const FARE_PER_KM_NIGHT: f64 = 1.30;
+const FARE_PER_KM_DAY: f64 = 0.74;
+const STANDARD_FLAG: f64 = 1.30;
+const MINIMUM_FARE: f64 = 3.47;
 
 #[derive(Debug)]
 enum MainError {
@@ -35,32 +35,33 @@ impl From<ReadError> for MainError {
 }
 
 fn main() -> Result<(), MainError> {
-    let input = File::open("paths.csv")?;
+    let input = File::open("large.csv")?;
     let rides = read_csv(input)?;
 
     let mut fares: Vec<Fare> = vec![];
     for ride in rides {
         let segments: Vec<Segment> = get_good_segments(ride.clone());
 
-        let mut fare_amount: f32 = 0.0;
-        for _segment in segments {
-            fare_amount += 1.0
+        let mut fare_amount: f64 = STANDARD_FLAG;
+        for segment in segments {
+            fare_amount += segment.get_fare()
+        }
+        if fare_amount < MINIMUM_FARE {
+            fare_amount = MINIMUM_FARE
         }
 
         fares.push(Fare {
             id: ride.id,
-            amount: fare_amount,
+            amount: Amount::from(fare_amount),
         })
     }
 
     let output = File::create("out.csv")?;
     write_csv(output, &fares)?;
-    write_csv(io::stdout(), &fares)?;
+    // write_csv(io::stdout(), &fares)?;
 
     Ok(())
 }
-
-// Rides and fares
 
 #[derive(Clone, Debug)]
 struct Position {
@@ -71,39 +72,167 @@ struct Position {
 struct Segment {
     start: DateTime<Utc>,
     end: DateTime<Utc>,
-    distance: f64,
+    distance_km: f64,
 }
 
 #[test]
 fn segment_speed() {
-    let segment1 = Segment {
+    let day_segment = Segment {
         start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
         end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
-        distance: 50.0,
+        distance_km: 50.0,
     };
-    assert_eq!(25.0, segment1.speed());
-    let segment2 = Segment {
+    assert_eq!(25.0, day_segment.speed());
+    let night_segment = Segment {
         start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
         end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
-        distance: 200.0,
+        distance_km: 200.0,
     };
-    assert_eq!(400.0, segment2.speed());
+    assert_eq!(400.0, night_segment.speed());
+}
+
+#[test]
+fn segment_duration() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(7200, day_segment.duration_seconds());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(1800, night_segment.duration_seconds());
+}
+
+#[test]
+fn segment_fare() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(37.0, day_segment.get_fare());
+
+    let idle_day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 0.0,
+    };
+    assert_eq!(11.90, idle_day_segment.get_fare());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(1, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(1, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(260.0, night_segment.get_fare());
+}
+
+#[test]
+fn segment_is_idle() {
+    let idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 0.0,
+    };
+    assert_eq!(true, idle_segment.is_idle());
+
+    let barely_idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 10.0,
+    };
+    assert_eq!(true, barely_idle_segment.is_idle());
+
+    let moving_idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(false, moving_idle_segment.is_idle());
+}
+
+#[test]
+fn segment_is_day() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(true, day_segment.is_day());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(true, night_segment.is_day());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(5, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(20, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(false, night_segment.is_day());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 1),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(false, night_segment.is_day());
 }
 
 impl Segment {
     fn speed(&self) -> f64 {
-        if self.distance == 0.0 {
+        if self.distance_km == 0.0 {
             return 0.0;
         }
-        let dt = self.end.timestamp() - self.start.timestamp();
+        let dt = self.duration_seconds();
         if dt == 0 {
             return f64::INFINITY;
         }
 
         let hours = dt as f64 / 3600.0;
-        let kmph_speed = self.distance / hours;
+        let kmph_speed = self.distance_km / hours;
 
         kmph_speed
+    }
+
+    fn duration_seconds(&self) -> i64 {
+        self.end.timestamp() - self.start.timestamp()
+    }
+
+    fn get_fare(&self) -> f64 {
+        if self.is_idle() {
+            FARE_PER_SECOND_IDLE * self.duration_seconds() as f64
+        } else if self.is_day() {
+            FARE_PER_KM_DAY * self.distance_km
+        } else {
+            FARE_PER_KM_NIGHT * self.distance_km
+        }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.speed() <= IDLE_SPEED
+    }
+
+    fn is_day(&self) -> bool {
+        if self.start.num_seconds_from_midnight() == 0 {
+            return true;
+        }
+
+        // how to declare that only once?
+        let start_of_day = Utc
+            .ymd(1, 1, 1)
+            .and_hms(5, 0, 1)
+            .num_seconds_from_midnight();
+
+        self.start.num_seconds_from_midnight() >= start_of_day
     }
 }
 
@@ -251,7 +380,10 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
         let segment = Segment {
             start: prev_pos.datetime,
             end: current_pos.datetime,
-            distance: haversine::distance(prev_pos.location.clone(), current_pos.location.clone()),
+            distance_km: haversine::distance_km(
+                prev_pos.location.clone(),
+                current_pos.location.clone(),
+            ),
         };
 
         if is_too_fast(segment.speed()) {
@@ -265,8 +397,6 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
 
     segments
 }
-
-// CSV
 
 #[derive(Debug)]
 enum ReadError {
@@ -289,7 +419,7 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(buffered);
-    let _distance = haversine::distance(
+    let _distance_km = haversine::distance_km(
         haversine::Location {
             latitude: 37.0,
             longitude: 23.0,
@@ -372,7 +502,23 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
 #[derive(Serialize)]
 struct Fare {
     id: u32,
-    amount: f32,
+    amount: Amount,
+}
+
+// Amount get rounded to 2 decimal places when serialized
+struct Amount(f64);
+impl std::convert::From<f64> for Amount {
+    fn from(f: f64) -> Self {
+        Self(f)
+    }
+}
+impl Serialize for Amount {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{:.2}", self.0))
+    }
 }
 
 fn write_csv(output: impl io::Write, fares: &Vec<Fare>) -> Result<(), io::Error> {

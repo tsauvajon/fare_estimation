@@ -8,7 +8,7 @@ pub struct Location {
 fn distance_test() {
     assert_eq!(
         0.5491557912038084,
-        distance(
+        distance_km(
             Location {
                 latitude: 38.898556,
                 longitude: -77.037852,
@@ -22,7 +22,7 @@ fn distance_test() {
 
     assert_eq!(
         15328.17837221522,
-        distance(
+        distance_km(
             Location {
                 latitude: -33.8883368,
                 longitude: 151.1931148
@@ -35,7 +35,7 @@ fn distance_test() {
     );
 
     assert_eq!(
-        distance(
+        distance_km(
             Location {
                 latitude: 37.990832,
                 longitude: 23.7032341
@@ -45,7 +45,7 @@ fn distance_test() {
                 longitude: 151.1931148
             },
         ),
-        distance(
+        distance_km(
             Location {
                 latitude: -33.8883368,
                 longitude: 151.1931148
@@ -58,7 +58,7 @@ fn distance_test() {
     );
 }
 
-pub fn distance(start: Location, end: Location) -> f64 {
+pub fn distance_km(start: Location, end: Location) -> f64 {
     let r: f64 = 6371.0;
 
     let d_lat: f64 = (end.latitude - start.latitude).to_radians();
