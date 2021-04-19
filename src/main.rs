@@ -1,4 +1,8 @@
+#![feature(test)]
+
 mod haversine;
+
+extern crate test;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
@@ -37,15 +41,7 @@ impl From<ReadError> for MainError {
 fn main() -> Result<(), MainError> {
     let input = File::open("paths.csv")?;
     let rides = read_csv(input)?;
-
-    let mut fares: Vec<Fare> = vec![];
-    for ride in rides {
-        fares.push(Fare {
-            id: ride.id,
-            amount: Amount::from(ride.calculate_fare()),
-        })
-    }
-
+    let fares = calculate_all_fares(rides);
     let output = File::create("out.csv")?;
     write_csv(output, &fares)?;
     write_csv(io::stdout(), &fares)?;
@@ -248,6 +244,69 @@ fn is_too_fast(speed: f64) -> bool {
 struct Ride {
     id: u32,
     positions: Vec<Position>,
+}
+
+#[test]
+fn test_calculate_all_fares() {
+    let rides = vec![
+        Ride {
+            id: 1,
+            positions: vec![],
+        },
+        Ride {
+            id: 2,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -77.0,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -78.0,
+                    }, // ± 87km from previous position
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -77.0,
+                    }, // ± 87km from previous position
+                },
+            ],
+        },
+    ];
+
+    let want = vec![
+        Fare {
+            id: 1,
+            amount: Amount::from(MINIMUM_FARE),
+        },
+        Fare {
+            id: 2,
+            amount: Amount::from(226.29426737040808),
+        },
+    ];
+
+    let got = calculate_all_fares(rides);
+    assert_eq!(want[0], got[0]);
+    assert_eq!(want[1], got[1]);
+}
+
+fn calculate_all_fares(rides: Vec<Ride>) -> Vec<Fare> {
+    let mut fares: Vec<Fare> = vec![];
+    for ride in rides {
+        fares.push(Fare {
+            id: ride.id,
+            amount: Amount::from(ride.calculate_fare()),
+        })
+    }
+
+    fares
 }
 
 #[test]
@@ -545,14 +604,26 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
     Ok(rides)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct Fare {
     id: u32,
     amount: Amount,
 }
 
+impl PartialEq for Fare {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.amount == other.amount
+    }
+}
+
 // Amount get rounded to 2 decimal places when serialized
+#[derive(Debug)]
 struct Amount(f64);
+impl PartialEq for Amount {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
 impl std::convert::From<f64> for Amount {
     fn from(f: f64) -> Self {
         Self(f)
