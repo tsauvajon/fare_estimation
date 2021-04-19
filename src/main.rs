@@ -1,30 +1,20 @@
 mod haversine;
 
+use chrono::prelude::*;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::convert::From;
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
 
-// const IDLE_SPEED: f32 = 10.0;
-// const FARE_PER_SECOND_IDLE: f32 = 11.90 / (60.0 * 60.0);
-// const FARE_PER_KM_NIGHT: f32 = 1.30;
-// const FARE_PER_KM_DAY: f32 = 0.74;
-// const STANDARD_FLAG: f32 = 1.30;
-// const MINIMUM_FARE: f32 = 3.47;
-
-#[derive(Debug)]
-enum ReadError {
-    MissingValueError { field: String },
-    // InvalidValueError { field: String, value: String },
-    CSVError(csv::Error),
-}
-
-impl From<csv::Error> for ReadError {
-    fn from(error: csv::Error) -> Self {
-        ReadError::CSVError(error)
-    }
-}
+const MAX_SPEED: f64 = 100.0;
+// const IDLE_SPEED: f64 = 10.0;
+// const FARE_PER_SECOND_IDLE: f64 = 11.90 / (60.0 * 60.0);
+// const FARE_PER_KM_NIGHT: f64 = 1.30;
+// const FARE_PER_KM_DAY: f64 = 0.74;
+// const STANDARD_FLAG: f64 = 1.30;
+// const MINIMUM_FARE: f64 = 3.47;
 
 #[derive(Debug)]
 enum MainError {
@@ -50,9 +40,16 @@ fn main() -> Result<(), MainError> {
 
     let mut fares: Vec<Fare> = vec![];
     for ride in rides {
+        let segments: Vec<Segment> = get_good_segments(ride.clone());
+
+        let mut fare_amount: f32 = 0.0;
+        for _segment in segments {
+            fare_amount += 1.0
+        }
+
         fares.push(Fare {
             id: ride.id,
-            amount: 12.34,
+            amount: fare_amount,
         })
     }
 
@@ -63,12 +60,228 @@ fn main() -> Result<(), MainError> {
     Ok(())
 }
 
-struct Ride {
-    id: u32,
-    positions: Vec<haversine::Location>,
+// Rides and fares
+
+#[derive(Clone, Debug)]
+struct Position {
+    datetime: DateTime<Utc>,
+    location: haversine::Location,
 }
 
-type Record = (Option<u32>, Option<f64>, Option<f64>, Option<u32>);
+struct Segment {
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    distance: f64,
+}
+
+#[test]
+fn segment_speed() {
+    let segment1 = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
+        distance: 50.0,
+    };
+    assert_eq!(25.0, segment1.speed());
+    let segment2 = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance: 200.0,
+    };
+    assert_eq!(400.0, segment2.speed());
+}
+
+impl Segment {
+    fn speed(&self) -> f64 {
+        if self.distance == 0.0 {
+            return 0.0;
+        }
+        let dt = self.end.timestamp() - self.start.timestamp();
+        if dt == 0 {
+            return f64::INFINITY;
+        }
+
+        let hours = dt as f64 / 3600.0;
+        let kmph_speed = self.distance / hours;
+
+        kmph_speed
+    }
+}
+
+#[test]
+fn it_is_too_fast() {
+    for speed in vec![120.0, 150.0, 999999.999] {
+        assert_eq!(true, is_too_fast(speed))
+    }
+}
+
+#[test]
+fn it_is_not_too_fast() {
+    for speed in vec![0.1, 20.0, 50.3, 99.999] {
+        assert_eq!(false, is_too_fast(speed))
+    }
+}
+
+fn is_too_fast(speed: f64) -> bool {
+    return speed > MAX_SPEED;
+}
+
+#[derive(Clone)]
+struct Ride {
+    id: u32,
+    positions: Vec<Position>,
+}
+
+#[test]
+fn it_keeps_good_segments() {
+    let ride = Ride {
+        id: 1,
+        positions: vec![
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                location: haversine::Location {
+                    latitude: 38.898556,
+                    longitude: -77.037852,
+                },
+            },
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                location: haversine::Location {
+                    latitude: 38.897147,
+                    longitude: -77.043934,
+                }, // ± 0.55km from previous position, ± 33 km/h
+            },
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
+                location: haversine::Location {
+                    latitude: 38.898556,
+                    longitude: -77.037852,
+                }, // ± 0.55km from previous position, ± 33 km/h
+            },
+        ],
+    };
+
+    let segments = get_good_segments(ride);
+    assert_eq!(2, segments.len(),);
+}
+
+#[cfg(test)]
+mod good_segment_tests {
+    use super::*;
+
+    #[test]
+    fn it_ditches_bad_segments() {
+        let ride = Ride {
+            id: 1,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.898556,
+                        longitude: -77.037852,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                    location: haversine::Location {
+                        latitude: 39.897147,
+                        longitude: -77.043934,
+                    }, // ± 111km from previous position, ± 6672 km/h
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
+                    location: haversine::Location {
+                        latitude: 40.898556,
+                        longitude: -77.037852,
+                    },
+                },
+            ],
+        };
+
+        let segments = get_good_segments(ride);
+        assert_eq!(0, segments.len(),);
+    }
+
+    #[test]
+    fn it_selects_correct_segments() {
+        let ride = Ride {
+            id: 1,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.898556,
+                        longitude: -77.037852,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 30),
+                    location: haversine::Location {
+                        latitude: 39.897147,
+                        longitude: -77.043934,
+                    }, // ± 111km from previous position, ± 6672 km/h
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                    location: haversine::Location {
+                        latitude: 38.897147,
+                        longitude: -77.043934,
+                    }, // ± 0.55km from position 1, ± 33 km/h
+                },
+            ],
+        };
+
+        let segments = get_good_segments(ride);
+        assert_eq!(1, segments.len(),);
+    }
+}
+
+fn get_good_segments(ride: Ride) -> Vec<Segment> {
+    let mut segments: Vec<Segment> = vec![];
+    let mut previous_position: Option<Position> = None;
+
+    for current_pos in ride.positions {
+        let prev_pos: Position = match previous_position.clone() {
+            Some(prev_pos) => prev_pos,
+            None => {
+                previous_position = Some(current_pos);
+                continue;
+            }
+        };
+
+        let segment = Segment {
+            start: prev_pos.datetime,
+            end: current_pos.datetime,
+            distance: haversine::distance(prev_pos.location.clone(), current_pos.location.clone()),
+        };
+
+        if is_too_fast(segment.speed()) {
+            continue;
+        }
+
+        segments.push(segment);
+
+        previous_position = Some(current_pos);
+    }
+
+    segments
+}
+
+// CSV
+
+#[derive(Debug)]
+enum ReadError {
+    MissingValueError { field: String },
+    // InvalidValueError { field: String, value: String },
+    CSVError(csv::Error),
+}
+
+impl From<csv::Error> for ReadError {
+    fn from(error: csv::Error) -> Self {
+        ReadError::CSVError(error)
+    }
+}
+
+type Record = (Option<u32>, Option<f64>, Option<f64>, Option<i64>);
 
 fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
     let buffered = BufReader::new(input);
@@ -89,11 +302,20 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
 
     let mut rides: Vec<Ride> = vec![];
     let mut current_ride_id: Option<u32> = None;
-    let mut positions: Vec<haversine::Location> = vec![];
+    let mut positions: Vec<Position> = vec![];
 
     for record in reader.deserialize() {
         let record: Record = record?;
-        let (id, lat, lon, _timestamp) = record;
+        let (id, lat, lon, datetime) = record;
+
+        let datetime: DateTime<Utc> = match datetime {
+            Some(ts) => Utc.timestamp(ts, 0),
+            None => {
+                return Err(ReadError::MissingValueError {
+                    field: "datetime".to_string(),
+                })
+            }
+        };
         let loc = haversine::Location {
             latitude: match lat {
                 Some(lat) => lat,
@@ -132,7 +354,10 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
             }
         }
 
-        positions.push(loc);
+        positions.push(Position {
+            datetime: datetime,
+            location: loc,
+        });
         current_ride_id = Some(valid_id);
     }
 
