@@ -345,8 +345,8 @@ fn ride_fare() {
 }
 
 impl Ride {
-    fn calculate_fare(&self) -> f64 {
-        let segments: Vec<Segment> = get_good_segments(&self);
+    fn calculate_fare(self) -> f64 {
+        let segments: Vec<Segment> = get_good_segments(self);
 
         let mut fare_amount: f64 = STANDARD_FLAG;
         for segment in segments {
@@ -388,7 +388,7 @@ fn it_keeps_good_segments() {
         ],
     };
 
-    let segments = get_good_segments(&ride);
+    let segments = get_good_segments(ride);
     assert_eq!(2, segments.len(),);
 }
 
@@ -425,7 +425,7 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(&ride);
+        let segments = get_good_segments(ride);
         assert_eq!(0, segments.len(),);
     }
 
@@ -458,12 +458,12 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(&ride);
+        let segments = get_good_segments(ride);
         assert_eq!(1, segments.len(),);
     }
 }
 
-fn get_good_segments(ride: &Ride) -> Vec<Segment> {
+fn get_good_segments(ride: Ride) -> Vec<Segment> {
     let mut previous_position: Option<Position> = None;
 
     ride.positions
