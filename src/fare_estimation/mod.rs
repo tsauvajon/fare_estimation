@@ -291,7 +291,6 @@ fn test_calculate_all_fares() {
 }
 
 fn calculate_all_fares(rides: Vec<Ride>) -> Vec<Fare> {
-    // let mut fares: Vec<Fare> = vec![];
     rides
         .into_par_iter()
         .map(|ride| Fare {
@@ -299,8 +298,6 @@ fn calculate_all_fares(rides: Vec<Ride>) -> Vec<Fare> {
             amount: Amount::from(ride.calculate_fare()),
         })
         .collect()
-
-    // fares
 }
 
 #[test]
@@ -467,37 +464,37 @@ mod good_segment_tests {
 }
 
 fn get_good_segments(ride: &Ride) -> Vec<Segment> {
-    let mut segments: Vec<Segment> = vec![];
     let mut previous_position: Option<Position> = None;
 
-    for current_pos in ride.positions.clone() {
-        let prev_pos: Position = match previous_position.clone() {
-            Some(prev_pos) => prev_pos,
-            None => {
-                previous_position = Some(current_pos);
-                continue;
+    ride.positions
+        .clone()
+        .into_iter()
+        .filter_map(|current_pos| {
+            let prev_pos: Position = match previous_position.clone() {
+                Some(prev_pos) => prev_pos,
+                None => {
+                    previous_position = Some(current_pos);
+                    return None;
+                }
+            };
+
+            let segment = Segment {
+                start: prev_pos.datetime,
+                end: current_pos.datetime,
+                distance_km: haversine::distance_km(
+                    prev_pos.location.clone(),
+                    current_pos.location.clone(),
+                ),
+            };
+
+            if is_too_fast(segment.speed()) {
+                return None;
             }
-        };
 
-        let segment = Segment {
-            start: prev_pos.datetime,
-            end: current_pos.datetime,
-            distance_km: haversine::distance_km(
-                prev_pos.location.clone(),
-                current_pos.location.clone(),
-            ),
-        };
-
-        if is_too_fast(segment.speed()) {
-            continue;
-        }
-
-        segments.push(segment);
-
-        previous_position = Some(current_pos);
-    }
-
-    segments
+            previous_position = Some(current_pos);
+            Some(segment)
+        })
+        .collect()
 }
 
 #[derive(Debug)]
