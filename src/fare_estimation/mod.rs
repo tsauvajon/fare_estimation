@@ -1,14 +1,10 @@
-#![feature(test)]
-
 mod haversine;
-
-extern crate test;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
+use rayon::prelude::*;
 use serde::{Serialize, Serializer};
 use std::convert::From;
-use std::fs::File;
 use std::io;
 use std::io::BufReader;
 
@@ -21,7 +17,7 @@ const STANDARD_FLAG: f64 = 1.30;
 const MINIMUM_FARE: f64 = 3.47;
 
 #[derive(Debug)]
-enum MainError {
+pub enum MainError {
     ReadError(ReadError),
     IOError(io::Error),
 }
@@ -38,13 +34,10 @@ impl From<ReadError> for MainError {
     }
 }
 
-fn main() -> Result<(), MainError> {
-    let input = File::open("paths.csv")?;
+pub fn estimate_fare(input: impl io::Read, output: impl io::Write) -> Result<(), MainError> {
     let rides = read_csv(input)?;
     let fares = calculate_all_fares(rides);
-    let output = File::create("out.csv")?;
     write_csv(output, &fares)?;
-    write_csv(io::stdout(), &fares)?;
 
     Ok(())
 }
@@ -298,15 +291,16 @@ fn test_calculate_all_fares() {
 }
 
 fn calculate_all_fares(rides: Vec<Ride>) -> Vec<Fare> {
-    let mut fares: Vec<Fare> = vec![];
-    for ride in rides {
-        fares.push(Fare {
+    // let mut fares: Vec<Fare> = vec![];
+    rides
+        .into_par_iter()
+        .map(|ride| Fare {
             id: ride.id,
             amount: Amount::from(ride.calculate_fare()),
         })
-    }
+        .collect()
 
-    fares
+    // fares
 }
 
 #[test]
@@ -368,7 +362,6 @@ impl Ride {
         fare_amount
     }
 }
-
 #[test]
 fn it_keeps_good_segments() {
     let ride = Ride {
@@ -508,7 +501,7 @@ fn get_good_segments(ride: &Ride) -> Vec<Segment> {
 }
 
 #[derive(Debug)]
-enum ReadError {
+pub enum ReadError {
     MissingValueError { field: String },
     CSVError(csv::Error),
 }

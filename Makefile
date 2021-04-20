@@ -12,3 +12,9 @@ test:
 
 fmt:
 	cargo fmt
+
+bench-med:
+	cargo bench -- medium_file
+
+bench:
+	cargo bench
