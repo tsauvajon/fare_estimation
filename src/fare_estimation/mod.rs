@@ -346,17 +346,10 @@ fn ride_fare() {
 
 impl Ride {
     fn calculate_fare(self) -> f64 {
-        let segments: Vec<Segment> = get_good_segments(self);
-
-        let mut fare_amount: f64 = STANDARD_FLAG;
-        for segment in segments {
-            fare_amount += segment.get_fare()
-        }
-        if fare_amount < MINIMUM_FARE {
-            fare_amount = MINIMUM_FARE;
-        }
-
-        fare_amount
+        get_good_segments(self)
+            .iter()
+            .fold(STANDARD_FLAG, |fare, segment| fare + segment.get_fare())
+            .max(MINIMUM_FARE)
     }
 }
 #[test]
