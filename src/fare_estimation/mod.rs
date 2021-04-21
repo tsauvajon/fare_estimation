@@ -37,7 +37,7 @@ impl From<ReadError> for MainError {
 
 pub fn estimate_fare(
     input: (impl io::Read + Send + 'static),
-    output: impl io::Write,
+    output: (impl io::Write + Send + 'static),
 ) -> Result<(), MainError> {
     let (parsed_records_tx, parsed_records_rx) = mpsc::channel();
     thread::spawn(move || {
@@ -45,13 +45,13 @@ pub fn estimate_fare(
     });
 
     let (fares_tx, fares_rx) = mpsc::channel();
-    let handle = thread::spawn(move || {
+    thread::spawn(move || {
         calculate_all_fares(parsed_records_rx, fares_tx);
     });
 
-    let fares: Vec<Fare> = fares_rx.into_iter().collect();
-    write_csv(output, &fares)?;
-
+    let handle = thread::spawn(move || {
+        write_csv(output, fares_rx).unwrap();
+    });
     handle.join().unwrap();
 
     Ok(())
@@ -319,13 +319,20 @@ fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mp
     for ride in rides {
         match ride {
             // real world scenario: do something with that error
-            Err(err) => println!("{:?}", err),
-            Ok(ride) => fares
-                .send(Fare {
-                    id: ride.id,
-                    amount: Amount::from(ride.calculate_fare()),
-                })
-                .unwrap(),
+            Err(err) => {
+                println!("{:?}", err)
+            }
+            Ok(ride) => {
+                let fares = fares.clone();
+                thread::spawn(move || {
+                    fares
+                        .send(Fare {
+                            id: ride.id,
+                            amount: Amount::from(ride.calculate_fare()),
+                        })
+                        .unwrap();
+                });
+            }
         }
     }
 
@@ -664,7 +671,7 @@ impl Serialize for Amount {
     }
 }
 
-fn write_csv(output: impl io::Write, fares: &Vec<Fare>) -> Result<(), io::Error> {
+fn write_csv(output: impl io::Write, fares: mpsc::Receiver<Fare>) -> Result<(), io::Error> {
     let mut writer = csv::WriterBuilder::new()
         .has_headers(false)
         .from_writer(output);

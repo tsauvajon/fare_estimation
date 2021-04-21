@@ -52,4 +52,16 @@ calc_fares_small_file   time:   [519.33 us 523.99 us 529.29 us]
 calc_fares_medium_file  time:   [89.155 ms 89.808 ms 90.666 ms]
 
 673 Mb file (large.csv):  
-calc_fares_large_file   time:   [3.8476 s 3.8683 s 3.8929 s]                                     
+calc_fares_large_file   time:   [3.8476 s 3.8683 s 3.8929 s]
+
+### Streaming reads and writes
+
+calc_fares_small_file   time:   [541.04 us 542.94 us 545.19 us]
+calc_fares_medium_file  time:   [91.086 ms 91.397 ms 91.753 ms]
+calc_fares_large_file   time:   [4.1299 s 4.1571 s 4.1855 s]
+
+### + Parallel fare calculation
+
+calc_fares_small_file   time:   [535.64 us 544.88 us 558.07 us]
+calc_fares_medium_file  time:   [97.330 ms 98.292 ms 99.371 ms]
+calc_fares_large_file   time:   [4.0844 s 4.1003 s 4.1196 s]
