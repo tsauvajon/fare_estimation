@@ -2,11 +2,12 @@ mod haversine;
 
 use chrono::prelude::*;
 use chrono::{DateTime, Utc};
-use rayon::prelude::*;
 use serde::{Serialize, Serializer};
 use std::convert::From;
 use std::io;
 use std::io::BufReader;
+use std::sync::mpsc;
+use std::thread;
 
 const MAX_SPEED: f64 = 100.0;
 const IDLE_SPEED: f64 = 10.0;
@@ -34,10 +35,24 @@ impl From<ReadError> for MainError {
     }
 }
 
-pub fn estimate_fare(input: impl io::Read, output: impl io::Write) -> Result<(), MainError> {
-    let rides = read_csv(input)?;
-    let fares = calculate_all_fares(rides);
+pub fn estimate_fare(
+    input: (impl io::Read + Send + 'static),
+    output: impl io::Write,
+) -> Result<(), MainError> {
+    let (parsed_records_tx, parsed_records_rx) = mpsc::channel();
+    thread::spawn(move || {
+        read_csv(input, parsed_records_tx);
+    });
+
+    let (fares_tx, fares_rx) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        calculate_all_fares(parsed_records_rx, fares_tx);
+    });
+
+    let fares: Vec<Fare> = fares_rx.into_iter().collect();
     write_csv(output, &fares)?;
+
+    handle.join().unwrap();
 
     Ok(())
 }
@@ -285,19 +300,42 @@ fn test_calculate_all_fares() {
         },
     ];
 
-    let got = calculate_all_fares(rides);
+    let (parsed_records_tx, parsed_records_rx) = mpsc::channel();
+    for ride in rides {
+        parsed_records_tx.send(Ok(ride)).unwrap();
+    }
+
+    let (fares_tx, fares_rx) = mpsc::channel();
+
+    calculate_all_fares(parsed_records_rx, fares_tx);
+    let got: Vec<Fare> = fares_rx.into_iter().collect();
+
+    assert_eq!(2, got.len());
     assert_eq!(want[0], got[0]);
     assert_eq!(want[1], got[1]);
 }
 
-fn calculate_all_fares(rides: Vec<Ride>) -> Vec<Fare> {
-    rides
-        .into_par_iter()
-        .map(|ride| Fare {
-            id: ride.id,
-            amount: Amount::from(ride.calculate_fare()),
-        })
-        .collect()
+fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mpsc::Sender<Fare>) {
+    for ride in rides {
+        match ride {
+            // real world scenario: do something with that error
+            Err(err) => println!("{:?}", err),
+            Ok(ride) => fares
+                .send(Fare {
+                    id: ride.id,
+                    amount: Amount::from(ride.calculate_fare()),
+                })
+                .unwrap(),
+        }
+    }
+
+    // rides
+    //     .into_par_iter()
+    //     .map(|ride| Fare {
+    //         id: ride.id,
+    //         amount: Amount::from(ride.calculate_fare()),
+    //     })
+    //     .collect()
 }
 
 #[test]
@@ -352,6 +390,7 @@ impl Ride {
             .max(MINIMUM_FARE)
     }
 }
+
 #[test]
 fn it_keeps_good_segments() {
     let ride = Ride {
@@ -539,35 +578,39 @@ fn parse_record(record: Record) -> Result<ParsedRecord, ReadError> {
     return Ok((id, datetime, loc));
 }
 
-fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
+fn read_csv(input: impl io::Read, parsed_records_tx: mpsc::Sender<Result<Ride, ReadError>>) -> () {
     let buffered = BufReader::new(input);
-
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(buffered);
-    let mut rides: Vec<Ride> = vec![];
+
     let mut current_ride_id: Option<u32> = None;
     let mut positions: Vec<Position> = vec![];
 
     for record in reader.deserialize() {
-        let record: Record = record?;
-        let (id, datetime, location) = parse_record(record)?;
+        let record: Record = record.unwrap(); // todo error
+        let (id, datetime, location) = parse_record(record).unwrap(); // todo error
 
         let valid_id = match id {
             Some(id) => id,
             None => {
-                return Err(ReadError::MissingValueError {
-                    field: "id".to_string(),
-                })
+                parsed_records_tx
+                    .send(Err(ReadError::MissingValueError {
+                        field: "id".to_string(),
+                    }))
+                    .unwrap();
+                continue;
             }
         };
 
         if let Some(cri) = current_ride_id {
             if cri != valid_id {
-                rides.push(Ride {
-                    id: cri,
-                    positions: positions.clone(),
-                });
+                parsed_records_tx
+                    .send(Ok(Ride {
+                        id: cri,
+                        positions: positions.clone(),
+                    }))
+                    .unwrap(); // TODO error
                 positions = vec![];
             }
         }
@@ -579,12 +622,12 @@ fn read_csv(input: impl io::Read) -> Result<Vec<Ride>, ReadError> {
         current_ride_id = Some(valid_id);
     }
 
-    rides.push(Ride {
-        id: current_ride_id.unwrap(),
-        positions: positions,
-    });
-
-    Ok(rides)
+    parsed_records_tx
+        .send(Ok(Ride {
+            id: current_ride_id.unwrap(),
+            positions: positions,
+        }))
+        .unwrap();
 }
 
 #[derive(Serialize, Debug)]
