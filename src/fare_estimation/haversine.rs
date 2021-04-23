@@ -4,6 +4,21 @@ pub struct Location {
     pub longitude: f64,
 }
 
+pub fn distance_km(start: Location, end: Location) -> f64 {
+    let r: f64 = 6371.0;
+
+    let d_lat: f64 = (end.latitude - start.latitude).to_radians();
+    let d_lon: f64 = (end.longitude - start.longitude).to_radians();
+    let lat1: f64 = (start.latitude).to_radians();
+    let lat2: f64 = (end.latitude).to_radians();
+
+    let a: f64 = ((d_lat / 2.0).sin()) * ((d_lat / 2.0).sin())
+        + ((d_lon / 2.0).sin()) * ((d_lon / 2.0).sin()) * (lat1.cos()) * (lat2.cos());
+    let c: f64 = 2.0 * ((a.sqrt()).atan2((1.0 - a).sqrt()));
+
+    r * c
+}
+
 #[test]
 fn distance_test() {
     assert_eq!(
@@ -56,19 +71,4 @@ fn distance_test() {
             },
         ),
     );
-}
-
-pub fn distance_km(start: Location, end: Location) -> f64 {
-    let r: f64 = 6371.0;
-
-    let d_lat: f64 = (end.latitude - start.latitude).to_radians();
-    let d_lon: f64 = (end.longitude - start.longitude).to_radians();
-    let lat1: f64 = (start.latitude).to_radians();
-    let lat2: f64 = (end.latitude).to_radians();
-
-    let a: f64 = ((d_lat / 2.0).sin()) * ((d_lat / 2.0).sin())
-        + ((d_lon / 2.0).sin()) * ((d_lon / 2.0).sin()) * (lat1.cos()) * (lat2.cos());
-    let c: f64 = 2.0 * ((a.sqrt()).atan2((1.0 - a).sqrt()));
-
-    r * c
 }

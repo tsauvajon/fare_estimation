@@ -65,3 +65,15 @@ calc_fares_large_file   time:   [4.1299 s 4.1571 s 4.1855 s]
 calc_fares_small_file   time:   [535.64 us 544.88 us 558.07 us]
 calc_fares_medium_file  time:   [97.330 ms 98.292 ms 99.371 ms]
 calc_fares_large_file   time:   [4.0844 s 4.1003 s 4.1196 s]
+
+### Sequential writes
+
+calc_fares_small_file   time:   [530.51 us 534.79 us 540.09 us]
+calc_fares_medium_file  time:   [101.67 ms 103.09 ms 104.85 ms]
+calc_fares_large_file   time:   [4.5771 s 4.6198 s 4.6635 s]
+
+### Streaming reads into parallel calculations (but no concurrent write)
+
+calc_fares_small_file   time:   [707.20 us 710.01 us 713.25 us]
+calc_fares_medium_file  time:   [111.58 ms 112.63 ms 113.65 ms]
+calc_fares_large_file   time:   [4.9325 s 4.9774 s 5.0217 s]

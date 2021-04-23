@@ -69,118 +69,6 @@ struct Segment {
     distance_km: f64,
 }
 
-#[test]
-fn segment_speed() {
-    let day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
-        distance_km: 50.0,
-    };
-    assert_eq!(25.0, day_segment.speed());
-    let night_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(400.0, night_segment.speed());
-}
-
-#[test]
-fn segment_duration() {
-    let day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
-        distance_km: 50.0,
-    };
-    assert_eq!(7200, day_segment.duration_seconds());
-
-    let night_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(1800, night_segment.duration_seconds());
-}
-
-#[test]
-fn segment_fare() {
-    let day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
-        distance_km: 50.0,
-    };
-    assert_eq!(37.0, day_segment.get_fare());
-
-    let idle_day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
-        distance_km: 0.0,
-    };
-    assert_eq!(11.90, idle_day_segment.get_fare());
-
-    let night_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(1, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(1, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(260.0, night_segment.get_fare());
-}
-
-#[test]
-fn segment_is_idle() {
-    let idle_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
-        distance_km: 0.0,
-    };
-    assert_eq!(true, idle_segment.is_idle());
-
-    let barely_idle_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
-        distance_km: 10.0,
-    };
-    assert_eq!(true, barely_idle_segment.is_idle());
-
-    let moving_idle_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
-        distance_km: 50.0,
-    };
-    assert_eq!(false, moving_idle_segment.is_idle());
-}
-
-#[test]
-fn segment_is_day() {
-    let day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
-        distance_km: 50.0,
-    };
-    assert_eq!(true, day_segment.is_day());
-
-    let late_day_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(true, late_day_segment.is_day());
-
-    let night_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(5, 0, 0),
-        end: Utc.ymd(2019, 1, 1).and_hms(20, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(false, night_segment.is_day());
-
-    let early_night_segment = Segment {
-        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 1),
-        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
-        distance_km: 200.0,
-    };
-    assert_eq!(false, early_night_segment.is_day());
-}
-
 impl Segment {
     fn speed(&self) -> f64 {
         if self.distance_km == 0.0 {
@@ -230,20 +118,6 @@ impl Segment {
     }
 }
 
-#[test]
-fn it_is_too_fast() {
-    for speed in vec![120.0, 150.0, 999999.999] {
-        assert_eq!(true, is_too_fast(speed))
-    }
-}
-
-#[test]
-fn it_is_not_too_fast() {
-    for speed in vec![0.1, 20.0, 50.3, 99.999] {
-        assert_eq!(false, is_too_fast(speed))
-    }
-}
-
 fn is_too_fast(speed: f64) -> bool {
     return speed > MAX_SPEED;
 }
@@ -252,67 +126,6 @@ fn is_too_fast(speed: f64) -> bool {
 struct Ride {
     id: u32,
     positions: Vec<Position>,
-}
-
-#[test]
-fn test_calculate_all_fares() {
-    let rides = vec![
-        Ride {
-            id: 1,
-            positions: vec![],
-        },
-        Ride {
-            id: 2,
-            positions: vec![
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
-                    location: haversine::Location {
-                        latitude: 38.9,
-                        longitude: -77.0,
-                    },
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
-                    location: haversine::Location {
-                        latitude: 38.9,
-                        longitude: -78.0,
-                    }, // ± 87km from previous position
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
-                    location: haversine::Location {
-                        latitude: 38.9,
-                        longitude: -77.0,
-                    }, // ± 87km from previous position
-                },
-            ],
-        },
-    ];
-
-    let want = vec![
-        Fare {
-            id: 1,
-            amount: Amount::from(MINIMUM_FARE),
-        },
-        Fare {
-            id: 2,
-            amount: Amount::from(226.29426737040808),
-        },
-    ];
-
-    let (parsed_records_tx, parsed_records_rx) = mpsc::channel();
-    for ride in rides {
-        parsed_records_tx.send(Ok(ride)).unwrap();
-    }
-
-    let (fares_tx, fares_rx) = mpsc::channel();
-
-    calculate_all_fares(parsed_records_rx, fares_tx);
-    let got: Vec<Fare> = fares_rx.into_iter().collect();
-
-    assert_eq!(2, got.len());
-    assert_eq!(want[0], got[0]);
-    assert_eq!(want[1], got[1]);
 }
 
 fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mpsc::Sender<Fare>) {
@@ -345,160 +158,12 @@ fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mp
     //     .collect()
 }
 
-#[test]
-fn ride_fare() {
-    for (ride, want) in vec![
-        (
-            Ride {
-                id: 1,
-                positions: vec![],
-            },
-            MINIMUM_FARE,
-        ),
-        (
-            Ride {
-                id: 1,
-                positions: vec![
-                    Position {
-                        datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
-                        location: haversine::Location {
-                            latitude: 38.9,
-                            longitude: -77.0,
-                        },
-                    },
-                    Position {
-                        datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
-                        location: haversine::Location {
-                            latitude: 38.9,
-                            longitude: -78.0,
-                        }, // ± 87km from previous position
-                    },
-                    Position {
-                        datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
-                        location: haversine::Location {
-                            latitude: 38.9,
-                            longitude: -77.0,
-                        }, // ± 87km from previous position
-                    },
-                ],
-            },
-            226.29426737040808,
-        ),
-    ] {
-        assert_eq!(want, ride.calculate_fare())
-    }
-}
-
 impl Ride {
     fn calculate_fare(self) -> f64 {
         get_good_segments(self)
             .iter()
             .fold(STANDARD_FLAG, |fare, segment| fare + segment.get_fare())
             .max(MINIMUM_FARE)
-    }
-}
-
-#[test]
-fn it_keeps_good_segments() {
-    let ride = Ride {
-        id: 1,
-        positions: vec![
-            Position {
-                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
-                location: haversine::Location {
-                    latitude: 38.898556,
-                    longitude: -77.037852,
-                },
-            },
-            Position {
-                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
-                location: haversine::Location {
-                    latitude: 38.897147,
-                    longitude: -77.043934,
-                }, // ± 0.55km from previous position, ± 33 km/h
-            },
-            Position {
-                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
-                location: haversine::Location {
-                    latitude: 38.898556,
-                    longitude: -77.037852,
-                }, // ± 0.55km from previous position, ± 33 km/h
-            },
-        ],
-    };
-
-    let segments = get_good_segments(ride);
-    assert_eq!(2, segments.len(),);
-}
-
-#[cfg(test)]
-mod good_segment_tests {
-    use super::*;
-
-    #[test]
-    fn it_ditches_bad_segments() {
-        let ride = Ride {
-            id: 1,
-            positions: vec![
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
-                    location: haversine::Location {
-                        latitude: 38.898556,
-                        longitude: -77.037852,
-                    },
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
-                    location: haversine::Location {
-                        latitude: 39.897147,
-                        longitude: -77.043934,
-                    }, // ± 111km from previous position, ± 6672 km/h
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
-                    location: haversine::Location {
-                        latitude: 40.898556,
-                        longitude: -77.037852,
-                    },
-                },
-            ],
-        };
-
-        let segments = get_good_segments(ride);
-        assert_eq!(0, segments.len(),);
-    }
-
-    #[test]
-    fn it_selects_correct_segments() {
-        let ride = Ride {
-            id: 1,
-            positions: vec![
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
-                    location: haversine::Location {
-                        latitude: 38.898556,
-                        longitude: -77.037852,
-                    },
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 30),
-                    location: haversine::Location {
-                        latitude: 39.897147,
-                        longitude: -77.043934,
-                    }, // ± 111km from previous position, ± 6672 km/h
-                },
-                Position {
-                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
-                    location: haversine::Location {
-                        latitude: 38.897147,
-                        longitude: -77.043934,
-                    }, // ± 0.55km from position 1, ± 33 km/h
-                },
-            ],
-        };
-
-        let segments = get_good_segments(ride);
-        assert_eq!(1, segments.len(),);
     }
 }
 
@@ -683,4 +348,339 @@ fn write_csv(output: impl io::Write, fares: mpsc::Receiver<Fare>) -> Result<(), 
     writer.flush()?;
 
     Ok(())
+}
+
+#[test]
+fn segment_speed() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(25.0, day_segment.speed());
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(400.0, night_segment.speed());
+}
+
+#[test]
+fn segment_duration() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(2, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(7200, day_segment.duration_seconds());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(1800, night_segment.duration_seconds());
+}
+
+#[test]
+fn segment_fare() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(37.0, day_segment.get_fare());
+
+    let idle_day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 0.0,
+    };
+    assert_eq!(11.90, idle_day_segment.get_fare());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(1, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(1, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(260.0, night_segment.get_fare());
+}
+
+#[test]
+fn segment_is_idle() {
+    let idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 0.0,
+    };
+    assert_eq!(true, idle_segment.is_idle());
+
+    let barely_idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 10.0,
+    };
+    assert_eq!(true, barely_idle_segment.is_idle());
+
+    let moving_idle_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(11, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(false, moving_idle_segment.is_idle());
+}
+
+#[test]
+fn segment_is_day() {
+    let day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(10, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(12, 0, 0),
+        distance_km: 50.0,
+    };
+    assert_eq!(true, day_segment.is_day());
+
+    let late_day_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(true, late_day_segment.is_day());
+
+    let night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(5, 0, 0),
+        end: Utc.ymd(2019, 1, 1).and_hms(20, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(false, night_segment.is_day());
+
+    let early_night_segment = Segment {
+        start: Utc.ymd(2019, 1, 1).and_hms(0, 0, 1),
+        end: Utc.ymd(2019, 1, 1).and_hms(0, 30, 0),
+        distance_km: 200.0,
+    };
+    assert_eq!(false, early_night_segment.is_day());
+}
+
+#[test]
+fn it_is_too_fast() {
+    for speed in vec![120.0, 150.0, 999999.999] {
+        assert_eq!(true, is_too_fast(speed))
+    }
+}
+
+#[test]
+fn it_is_not_too_fast() {
+    for speed in vec![0.1, 20.0, 50.3, 99.999] {
+        assert_eq!(false, is_too_fast(speed))
+    }
+}
+
+#[test]
+fn test_calculate_all_fares() {
+    let rides = vec![
+        Ride {
+            id: 1,
+            positions: vec![],
+        },
+        Ride {
+            id: 2,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -77.0,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -78.0,
+                    }, // ± 87km from previous position
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.9,
+                        longitude: -77.0,
+                    }, // ± 87km from previous position
+                },
+            ],
+        },
+    ];
+
+    let want = vec![
+        Fare {
+            id: 1,
+            amount: Amount::from(MINIMUM_FARE),
+        },
+        Fare {
+            id: 2,
+            amount: Amount::from(226.29426737040808),
+        },
+    ];
+
+    let (parsed_records_tx, parsed_records_rx) = mpsc::channel();
+    for ride in rides {
+        parsed_records_tx.send(Ok(ride)).unwrap();
+    }
+
+    let (fares_tx, fares_rx) = mpsc::channel();
+
+    calculate_all_fares(parsed_records_rx, fares_tx);
+    let got: Vec<Fare> = fares_rx.into_iter().collect();
+
+    assert_eq!(2, got.len());
+    assert_eq!(want[0], got[0]);
+    assert_eq!(want[1], got[1]);
+}
+
+#[test]
+fn ride_fare() {
+    for (ride, want) in vec![
+        (
+            Ride {
+                id: 1,
+                positions: vec![],
+            },
+            MINIMUM_FARE,
+        ),
+        (
+            Ride {
+                id: 1,
+                positions: vec![
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(3, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -77.0,
+                        },
+                    },
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(5, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -78.0,
+                        }, // ± 87km from previous position
+                    },
+                    Position {
+                        datetime: Utc.ymd(2020, 10, 20).and_hms(6, 0, 0),
+                        location: haversine::Location {
+                            latitude: 38.9,
+                            longitude: -77.0,
+                        }, // ± 87km from previous position
+                    },
+                ],
+            },
+            226.29426737040808,
+        ),
+    ] {
+        assert_eq!(want, ride.calculate_fare())
+    }
+}
+
+#[test]
+fn it_keeps_good_segments() {
+    let ride = Ride {
+        id: 1,
+        positions: vec![
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                location: haversine::Location {
+                    latitude: 38.898556,
+                    longitude: -77.037852,
+                },
+            },
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                location: haversine::Location {
+                    latitude: 38.897147,
+                    longitude: -77.043934,
+                }, // ± 0.55km from previous position, ± 33 km/h
+            },
+            Position {
+                datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
+                location: haversine::Location {
+                    latitude: 38.898556,
+                    longitude: -77.037852,
+                }, // ± 0.55km from previous position, ± 33 km/h
+            },
+        ],
+    };
+
+    let segments = get_good_segments(ride);
+    assert_eq!(2, segments.len(),);
+}
+
+#[cfg(test)]
+mod good_segment_tests {
+    use super::*;
+
+    #[test]
+    fn it_ditches_bad_segments() {
+        let ride = Ride {
+            id: 1,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.898556,
+                        longitude: -77.037852,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                    location: haversine::Location {
+                        latitude: 39.897147,
+                        longitude: -77.043934,
+                    }, // ± 111km from previous position, ± 6672 km/h
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 2, 0),
+                    location: haversine::Location {
+                        latitude: 40.898556,
+                        longitude: -77.037852,
+                    },
+                },
+            ],
+        };
+
+        let segments = get_good_segments(ride);
+        assert_eq!(0, segments.len(),);
+    }
+
+    #[test]
+    fn it_selects_correct_segments() {
+        let ride = Ride {
+            id: 1,
+            positions: vec![
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 0),
+                    location: haversine::Location {
+                        latitude: 38.898556,
+                        longitude: -77.037852,
+                    },
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 0, 30),
+                    location: haversine::Location {
+                        latitude: 39.897147,
+                        longitude: -77.043934,
+                    }, // ± 111km from previous position, ± 6672 km/h
+                },
+                Position {
+                    datetime: Utc.ymd(2020, 10, 20).and_hms(0, 1, 0),
+                    location: haversine::Location {
+                        latitude: 38.897147,
+                        longitude: -77.043934,
+                    }, // ± 0.55km from position 1, ± 33 km/h
+                },
+            ],
+        };
+
+        let segments = get_good_segments(ride);
+        assert_eq!(1, segments.len(),);
+    }
 }
