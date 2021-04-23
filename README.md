@@ -68,12 +68,18 @@ calc_fares_large_file   time:   [4.0844 s 4.1003 s 4.1196 s]
 
 ### Sequential writes
 
-calc_fares_small_file   time:   [530.51 us 534.79 us 540.09 us]
-calc_fares_medium_file  time:   [101.67 ms 103.09 ms 104.85 ms]
-calc_fares_large_file   time:   [4.5771 s 4.6198 s 4.6635 s]
+calc_fares_small_file   time:   [530.51 us 534.79 us 540.09 us]  
+calc_fares_medium_file  time:   [101.67 ms 103.09 ms 104.85 ms]  
+calc_fares_large_file   time:   [4.5771 s 4.6198 s 4.6635 s]  
 
 ### Streaming reads into parallel calculations (but no concurrent write)
 
-calc_fares_small_file   time:   [707.20 us 710.01 us 713.25 us]
-calc_fares_medium_file  time:   [111.58 ms 112.63 ms 113.65 ms]
-calc_fares_large_file   time:   [4.9325 s 4.9774 s 5.0217 s]
+calc_fares_small_file   time:   [707.20 us 710.01 us 713.25 us]  
+calc_fares_medium_file  time:   [111.58 ms 112.63 ms 113.65 ms]  
+calc_fares_large_file   time:   [4.9325 s 4.9774 s 5.0217 s]  
+
+### Using Tokio
+
+calc_fares_small_file   time:   [457.52 us 458.69 us 460.07 us]  
+calc_fares_medium_file  time:   [86.450 ms 87.616 ms 88.955 ms]  
+calc_fares_large_file   time:   [3.7173 s 3.7481 s 3.7838 s]  

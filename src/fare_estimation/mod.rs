@@ -35,7 +35,7 @@ impl From<ReadError> for MainError {
     }
 }
 
-pub fn estimate_fare(
+pub async fn estimate_fare(
     input: (impl io::Read + Send + 'static),
     output: (impl io::Write + Send + 'static),
 ) -> Result<(), MainError> {
@@ -45,14 +45,11 @@ pub fn estimate_fare(
     });
 
     let (fares_tx, fares_rx) = mpsc::channel();
-    thread::spawn(move || {
-        calculate_all_fares(parsed_records_rx, fares_tx);
+    tokio::spawn(async move {
+        calculate_all_fares(parsed_records_rx, fares_tx).await;
     });
 
-    let handle = thread::spawn(move || {
-        write_csv(output, fares_rx).unwrap();
-    });
-    handle.join().unwrap();
+    write_csv(output, fares_rx).unwrap();
 
     Ok(())
 }
@@ -128,7 +125,10 @@ struct Ride {
     positions: Vec<Position>,
 }
 
-fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mpsc::Sender<Fare>) {
+async fn calculate_all_fares(
+    rides: mpsc::Receiver<Result<Ride, ReadError>>,
+    fares: mpsc::Sender<Fare>,
+) {
     for ride in rides {
         match ride {
             // real world scenario: do something with that error
@@ -137,11 +137,12 @@ fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mp
             }
             Ok(ride) => {
                 let fares = fares.clone();
-                thread::spawn(move || {
+                tokio::spawn(async move {
+                    let amount = ride.clone().calculate_fare().await;
                     fares
                         .send(Fare {
-                            id: ride.id,
-                            amount: Amount::from(ride.calculate_fare()),
+                            id: ride.clone().id,
+                            amount: Amount::from(amount),
                         })
                         .unwrap();
                 });
@@ -159,7 +160,7 @@ fn calculate_all_fares(rides: mpsc::Receiver<Result<Ride, ReadError>>, fares: mp
 }
 
 impl Ride {
-    fn calculate_fare(self) -> f64 {
+    async fn calculate_fare(self) -> f64 {
         get_good_segments(self)
             .iter()
             .fold(STANDARD_FLAG, |fare, segment| fare + segment.get_fare())
@@ -476,8 +477,8 @@ fn it_is_not_too_fast() {
     }
 }
 
-#[test]
-fn test_calculate_all_fares() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_calculate_all_fares() {
     let rides = vec![
         Ride {
             id: 1,
@@ -526,10 +527,11 @@ fn test_calculate_all_fares() {
     for ride in rides {
         parsed_records_tx.send(Ok(ride)).unwrap();
     }
+    drop(parsed_records_tx);
 
     let (fares_tx, fares_rx) = mpsc::channel();
 
-    calculate_all_fares(parsed_records_rx, fares_tx);
+    calculate_all_fares(parsed_records_rx, fares_tx).await;
     let got: Vec<Fare> = fares_rx.into_iter().collect();
 
     assert_eq!(2, got.len());
@@ -537,8 +539,8 @@ fn test_calculate_all_fares() {
     assert_eq!(want[1], got[1]);
 }
 
-#[test]
-fn ride_fare() {
+#[tokio::test(flavor = "multi_thread")]
+async fn ride_fare() {
     for (ride, want) in vec![
         (
             Ride {
@@ -577,7 +579,7 @@ fn ride_fare() {
             226.29426737040808,
         ),
     ] {
-        assert_eq!(want, ride.calculate_fare())
+        assert_eq!(want, ride.calculate_fare().await)
     }
 }
 
