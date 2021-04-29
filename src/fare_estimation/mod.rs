@@ -77,9 +77,7 @@ impl Segment {
         }
 
         let hours = dt as f64 / 3600.0;
-        let kmph_speed = self.distance_km / hours;
-
-        kmph_speed
+        self.distance_km / hours
     }
 
     fn duration_seconds(&self) -> i64 {
@@ -116,7 +114,7 @@ impl Segment {
 }
 
 fn is_too_fast(speed: f64) -> bool {
-    return speed > MAX_SPEED;
+    speed > MAX_SPEED
 }
 
 #[derive(Clone)]
@@ -172,7 +170,6 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
     let mut previous_position: Option<Position> = None;
 
     ride.positions
-        .clone()
         .into_iter()
         .filter_map(|current_pos| {
             let prev_pos: Position = match previous_position.clone() {
@@ -187,7 +184,7 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
                 start: prev_pos.datetime,
                 end: current_pos.datetime,
                 distance_km: haversine::distance_km(
-                    prev_pos.location.clone(),
+                    prev_pos.location,
                     current_pos.location.clone(),
                 ),
             };
@@ -248,10 +245,10 @@ fn parse_record(record: Record) -> Result<ParsedRecord, ReadError> {
         },
     };
 
-    return Ok((id, datetime, loc));
+    Ok((id, datetime, loc))
 }
 
-fn read_csv(input: impl io::Read, parsed_records_tx: mpsc::Sender<Result<Ride, ReadError>>) -> () {
+fn read_csv(input: impl io::Read, parsed_records_tx: mpsc::Sender<Result<Ride, ReadError>>) {
     let buffered = BufReader::new(input);
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -288,17 +285,14 @@ fn read_csv(input: impl io::Read, parsed_records_tx: mpsc::Sender<Result<Ride, R
             }
         }
 
-        positions.push(Position {
-            datetime: datetime,
-            location: location,
-        });
+        positions.push(Position { datetime, location });
         current_ride_id = Some(valid_id);
     }
 
     parsed_records_tx
         .send(Ok(Ride {
             id: current_ride_id.unwrap(),
-            positions: positions,
+            positions,
         }))
         .unwrap();
 }
