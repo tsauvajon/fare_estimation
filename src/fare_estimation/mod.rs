@@ -136,10 +136,10 @@ async fn calculate_all_fares(
             Ok(ride) => {
                 let fares = fares.clone();
                 tokio::spawn(async move {
-                    let amount = ride.clone().calculate_fare().await;
+                    let amount = ride.calculate_fare().await;
                     fares
                         .send(Fare {
-                            id: ride.clone().id,
+                            id: (&ride).id,
                             amount: Amount::from(amount),
                         })
                         .unwrap();
@@ -158,7 +158,7 @@ async fn calculate_all_fares(
 }
 
 impl Ride {
-    async fn calculate_fare(self) -> f64 {
+    async fn calculate_fare(&self) -> f64 {
         get_good_segments(self)
             .iter()
             .fold(STANDARD_FLAG, |fare, segment| fare + segment.get_fare())
@@ -166,13 +166,14 @@ impl Ride {
     }
 }
 
-fn get_good_segments(ride: Ride) -> Vec<Segment> {
+fn get_good_segments(ride: &Ride) -> Vec<Segment> {
     let mut previous_position: Option<Position> = None;
 
-    ride.positions
+    ride.to_owned()
+        .positions
         .into_iter()
         .filter_map(|current_pos| {
-            let prev_pos: Position = match previous_position.clone() {
+            let prev_pos = match &previous_position {
                 Some(prev_pos) => prev_pos,
                 None => {
                     previous_position = Some(current_pos);
@@ -183,10 +184,7 @@ fn get_good_segments(ride: Ride) -> Vec<Segment> {
             let segment = Segment {
                 start: prev_pos.datetime,
                 end: current_pos.datetime,
-                distance_km: haversine::distance_km(
-                    prev_pos.location,
-                    current_pos.location.clone(),
-                ),
+                distance_km: haversine::distance_km(&prev_pos.location, &current_pos.location),
             };
 
             if is_too_fast(segment.speed()) {
@@ -278,7 +276,7 @@ fn read_csv(input: impl io::Read, parsed_records_tx: mpsc::Sender<Result<Ride, R
                 parsed_records_tx
                     .send(Ok(Ride {
                         id: cri,
-                        positions: positions.clone(),
+                        positions: positions,
                     }))
                     .unwrap(); // TODO error
                 positions = vec![];
@@ -606,7 +604,7 @@ fn it_keeps_good_segments() {
         ],
     };
 
-    let segments = get_good_segments(ride);
+    let segments = get_good_segments(&ride);
     assert_eq!(2, segments.len(),);
 }
 
@@ -643,7 +641,7 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(ride);
+        let segments = get_good_segments(&ride);
         assert_eq!(0, segments.len(),);
     }
 
@@ -676,7 +674,7 @@ mod good_segment_tests {
             ],
         };
 
-        let segments = get_good_segments(ride);
+        let segments = get_good_segments(&ride);
         assert_eq!(1, segments.len(),);
     }
 }
